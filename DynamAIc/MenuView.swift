@@ -9,6 +9,7 @@ import SwiftUI
 
 struct MenuView: View {
     @StateObject var viewModel = WidgetViewModel()
+    @FocusState var isFocused
     
     var body: some View {
         VStack(spacing: 12) {
@@ -21,6 +22,7 @@ struct MenuView: View {
                     .fontWeight(.medium)
                     .textFieldStyle(.plain)
                     .multilineTextAlignment(.leading)
+                    .focused($isFocused)
                     .clipShape(.rect(cornerRadius: 6))
                     .padding(8)
                     .padding(.horizontal, 4)
@@ -36,6 +38,9 @@ struct MenuView: View {
                         withAnimation {
                             viewModel.submit()
                         }
+                    }
+                    .onAppear {
+                        isFocused = true
                     }
                     .transition(.blurReplace)
             case .waitingForResponse:

@@ -9,52 +9,12 @@ import AppKit
 
 class OpenAINetworkManager {
     static func getAssistantResponse(_ message: String) async throws -> DynamAIcResponse {
-        let res = try await Self.sendOpenAIAPIRequest(OpenAIAPIRequest(input: message, instructions: Self.markdownInstructionContents))
-        
-        var fCalls = res.output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? []
-        
-        var prev = res
-        while !fCalls.isEmpty {
-            let f = fCalls.removeFirst()
-            print(f.name)
-            let matchedFunc = Self.defaultFunctions.first(where: { $0.name == f.name })
-             // handle image logic
-            let req: OpenAIAPIRequest
-            if matchedFunc?.name == "take-screenshot" {
-                // get screenshot image
-                // create a new request state where:
-                //      input_text is the original request
-                //      image is the base64
-                // prev response ID should be the id (not call_id of function request)
-                if let img = await AIScreenshotManager.getBase64ScreenshotImage(patchSize: 32, maxPatches: 1536) {
-                    let functionReturn = OpenAIAPIRequest(
-                        input: OpenAIFunctionInput(callId: f.callId, output: "Screenshot successful, sending output. Will be handled by another call."),
-                        previousResponseId: prev.id, tools: [], toolChoice: "none")
-                    prev = try await Self.sendOpenAIAPIRequest(functionReturn)
-                    req = OpenAIAPIRequest(
-                        input: OpenAIImageContentInput(base64Img: img, message: message),
-                        previousResponseId: prev.id
-                    )
-                } else {
-                    // send a normal response saying failed
-                    req = OpenAIAPIRequest(
-                        input: OpenAIFunctionInput(callId: f.callId, output: "Failed to capture image"),
-                        previousResponseId: prev.id)
-                }
-                
-            } else {
-                let out = await matchedFunc?.executorFunction?(f.arguments) ?? "function call failed"
-                req = OpenAIAPIRequest(
-                    input: OpenAIFunctionInput(callId: f.callId, output: out),
-                    previousResponseId: prev.id)
-            }
-            
-            prev = try await Self.sendOpenAIAPIRequest(req)
-            fCalls.append(contentsOf: prev.output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? [])
-        }
+        let request = OpenAIAPIRequest(input: message, instructions: Self.markdownInstructionContents)
+        let res = try await Self.sendOpenAIAPIRequest(request)
+        let finalResult = try await Self.executeFunctionCalls(for: res, given: request)
         
         
-        let msgBody = prev.output?.first(where: {
+        let msgBody = finalResult.output?.last(where: {
             $0.body is OpenAIMessageResponse
         })
         
@@ -79,6 +39,76 @@ class OpenAINetworkManager {
         
         return try JSONDecoder().decode(OpenAIAPIResponse.self, from: data)
     }
+    
+    static func executeFunctionCalls(for response: OpenAIAPIResponse, given request: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
+        if response.functionCalls.isEmpty {
+            return response
+        }
+        
+        return try await withThrowingTaskGroup(of: (OpenAIFunctionInput, (any OpenAIInput)?).self) { group in
+            let functions = response.functionCalls
+            functions.forEach { function in
+                group.addTask {
+                    print(function.name)
+                    guard let matchedFunc = Self.defaultFunctions.first(where: { $0.name == function.name }) else {
+                        throw OpenAIError.callToNonExistantFunction(function)
+                    }
+                    
+                    let result: OpenAIFunctionInput
+                    let callbackInput: (any OpenAIInput)?
+                    switch matchedFunc.name {
+                    case "take-screenshot":
+                        let img = await AIScreenshotManager.takeScreenshot()
+                        result = OpenAIFunctionInput(
+                            callId: function.callId,
+                            output: img != nil ?
+                            "Screenshot successful, sending output. Will be handled by another call." :
+                                "Failed to capture image")
+                        if let img {
+                            callbackInput = OpenAIImageContentInput(image: img, message: request.textInput ?? "Here is the image. Proceed with the original request.")
+                        } else {
+                            callbackInput = nil
+                        }
+                    default:
+                        let out = await matchedFunc.executorFunction?(function.arguments)
+                            ?? "Failed to execute this function. Consider using a different function or workaround. Be creative."
+                        result = OpenAIFunctionInput(
+                            callId: function.callId,
+                            output: out)
+                        callbackInput = nil
+                    }
+                    return (result, callbackInput)
+                }
+            }
+            
+            var functionOutputsToSend: [OpenAIFunctionInput] = []
+            var callbackOutputsToSend: [any OpenAIInput] = []
+            for try await (res, callbackInput) in group {
+                functionOutputsToSend.append(res)
+                if let callbackInput {
+                    callbackOutputsToSend.append(callbackInput)
+                }
+            }
+        
+            var finalResponse: OpenAIAPIResponse = response
+            if !functionOutputsToSend.isEmpty {
+                let res = try await Self.sendOpenAIAPIRequest(.init(input: functionOutputsToSend, previousResponseId: finalResponse.id))
+                finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
+            }
+            
+            if !callbackOutputsToSend.isEmpty {
+                let res = try await Self.sendOpenAIAPIRequest(.init(input: callbackOutputsToSend, previousResponseId: finalResponse.id))
+                finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
+            }
+
+            return try await Self.executeFunctionCalls(for: finalResponse, given: request)
+        }
+    }
+    
+    enum OpenAIError: Error {
+        case callToNonExistantFunction(OpenAIFunctionCallRequest)
+    }
+
 }
 
 
@@ -173,12 +203,19 @@ extension OpenAINetworkManager {
 // MARK: Models
 struct OpenAIAPIRequest: Encodable {
     var model: String
-    let input: [any OpenAIInput]
+    let input: OpenAIInputs
     let instructions: String
     let tools: [OpenAIGenericTool]
     let previousResponseId: String?
     let toolChoice: String
     let parallelToolCalls: Bool
+    
+    var textInput: String? {
+        guard let firstText = input.inputs.first(where: { $0 is OpenAIContentInput }) else {
+            return nil
+        }
+        return (firstText as? OpenAIContentInput)?.content
+    }
     
     init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.init(model: model, input: [input], instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
@@ -189,14 +226,14 @@ struct OpenAIAPIRequest: Encodable {
         self.init(model: model, input: OpenAIContentInput(content: input), instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
     }
     
-    private init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool], toolChoice: String) {
+    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.model = model
-        self.input = input
+        self.input = OpenAIInputs(inputs: input)
         self.instructions = instructions
         self.previousResponseId = previousResponseId
         self.toolChoice = toolChoice
         self.tools = tools
-        self.parallelToolCalls = false
+        self.parallelToolCalls = true
     }
     
     func encode(to encoder: any Encoder) throws {
@@ -210,17 +247,7 @@ struct OpenAIAPIRequest: Encodable {
         try container.encode(toolChoice, forKey: .toolChoice)
         try container.encode(parallelToolCalls, forKey: .parallelToolCalls)
         
-        guard let first = input.first else { return }
-        switch first {
-        case let value as OpenAIContentInput:
-            try container.encode([value], forKey: .input)
-        case let value as OpenAIFunctionInput:
-            try container.encode([value], forKey: .input)
-        case let value as OpenAIImageContentInput:
-            try container.encode([value], forKey: .input)
-        default:
-            throw EncodingError.invalidValue(first as Any, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
-        }
+        try container.encode(input, forKey: .input)
     }
     
     enum CodingKeys: String, CodingKey {
@@ -231,6 +258,26 @@ struct OpenAIAPIRequest: Encodable {
         case tools
         case toolChoice = "tool_choice"
         case parallelToolCalls = "parallel_tool_calls"
+    }
+}
+
+struct OpenAIInputs: Encodable {
+    let inputs: [any OpenAIInput]
+    
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.unkeyedContainer()
+        try inputs.forEach {
+            switch $0 {
+            case let value as OpenAIContentInput:
+                try container.encode(value)
+            case let value as OpenAIFunctionInput:
+                try container.encode(value)
+            case let value as OpenAIImageContentInput:
+                try container.encode(value)
+            default:
+                throw EncodingError.invalidValue($0 as Any, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
+            }
+        }
     }
 }
 
@@ -250,14 +297,12 @@ struct OpenAIImageContentInput: OpenAIInput {
     let content: OpenAIImageContent
     let role: String
     
-    init(base64Img: String, message: String, role: String = "user") {
+    init(image: CGImage, message: String, role: String = "user") {
         self.content = OpenAIImageContent(
             text: OpenAIImageContentText(
                 text: message,
                 type: "input_text"),
-            image: OpenAIImageContentImage(
-                type: "input_image",
-                imageUrl: "data:image/png;base64,\(base64Img)"))
+            image: OpenAIImageContentImage(image: image, patchSize: 32, maxPatches: 1536))
         self.role = role
     }
     
@@ -307,6 +352,12 @@ struct OpenAIImageContentText: Encodable {
 struct OpenAIImageContentImage: Encodable {
     let type: String
     let imageUrl: String
+    
+    init(image: CGImage, patchSize: Int, maxPatches: Int) {
+        let base64Img = AIScreenshotManager.base64Image(image, patchSize: patchSize, maxPatches: maxPatches)
+        self.type = "input_image"
+        self.imageUrl = "data:image/png;base64,\(base64Img)"
+    }
     
     enum CodingKeys: String, CodingKey {
         case type
@@ -485,6 +536,12 @@ struct OpenAIAPIResponse: Codable, Identifiable {
     let id: String?
     let error: OpenAIError?
     let output: [OpenAIGeneric]?
+    
+    var functionCalls: [OpenAIFunctionCallRequest] {
+        return output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? []
+    }
+    
+    
 }
 
 struct OpenAIMessage: Codable {
