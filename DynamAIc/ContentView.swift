@@ -6,16 +6,22 @@
 //
 
 import SwiftUI
+import SwiftData
 
 struct ContentView: View {
+    @Query var history: [DynamAIcResponse]
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        TabView {
+            ForEach(history, id: \.self) { res in
+                Text(LocalizedStringKey(res.message))
+                    .tabItem {
+                        Label(String(res.hashValue), systemImage: "book")
+                    }
+            }
+            
         }
-        .padding()
+        .tabViewStyle(.sidebarAdaptable)
     }
 }
 

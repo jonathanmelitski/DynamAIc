@@ -13,6 +13,8 @@ struct DynamAIcApp: App {
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .modelContext(ApplicationViewModel.shared.context)
+                .modelContainer(ApplicationViewModel.shared.container)
         }
     }
 }
@@ -30,10 +32,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         popOver.contentViewController?.view = NSHostingView(rootView: menuView)
         popOver.contentViewController?.view.window?.makeKey()
         
-        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
+        statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         
         if let MenuButton = statusItem?.button {
-            MenuButton.image = NSImage(systemSymbolName: "figure.roll.runningpace", accessibilityDescription: nil)
+            MenuButton.image = NSImage(systemSymbolName: "mustache.fill", accessibilityDescription: nil)
             MenuButton.action = #selector(MenuButtonToggle)
         }
     }
