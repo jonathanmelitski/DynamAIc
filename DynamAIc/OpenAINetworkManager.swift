@@ -9,21 +9,30 @@ import AppKit
 
 class OpenAINetworkManager {
     static func getAssistantResponse(_ message: String) async throws -> DynamAIcResponse {
-        let request = OpenAIAPIRequest(input: message, instructions: Self.markdownInstructionContents)
-        let res = try await Self.sendOpenAIAPIRequest(request)
-        let finalResult = try await Self.executeFunctionCalls(for: res, given: request)
+        let strategistRequest = OpenAIAPIRequest(model: "gpt-4.1-mini", input: message, instructions: Self.strategistInstructionContents)
+        let strategistResponse = try await Self.executeOpenAIRequest(strategistRequest)
+        guard let strategy = strategistResponse.textMessage else { throw OpenAINetworkError.noStrategy }
         
+        let messageCombined =
+                    """
+                        <REQUEST>
+                        \(message)
+                        </REQUEST>
+
+                        <PLAN FROM STRATEGIST>
+                        \(strategy)
+                        </PLAN>
+                    """
+        let executorRequest = OpenAIAPIRequest(input: messageCombined)
+        let executorResponse = try await executeOpenAIRequest(executorRequest)
+        guard let response = executorResponse.textMessage else { throw OpenAINetworkError.noMessageReturned }
         
-        let msgBody = finalResult.output?.last(where: {
-            $0.body is OpenAIMessageResponse
-        })
-        
-        guard let body = msgBody?.body,
-              let msg = body as? OpenAIMessageResponse,
-              let first = msg.content.first else {
-            throw OpenAINetworkError.noMessageReturned }
-        
-        return DynamAIcResponse(message: first.text)
+        return DynamAIcResponse(message: response)
+    }
+    
+    static func executeOpenAIRequest(_ req: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
+        let res = try await Self.sendOpenAIAPIRequest(req)
+        return try await Self.executeFunctionCalls(for: res, given: req)
     }
     
     static func sendOpenAIAPIRequest(_ req: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
@@ -50,7 +59,7 @@ class OpenAINetworkManager {
             functions.forEach { function in
                 group.addTask {
                     print(function.name)
-                    guard let matchedFunc = Self.defaultFunctions.first(where: { $0.name == function.name }) else {
+                    guard let matchedFunc = OpenAIFunction.defaultFunctions.first(where: { $0.name == function.name }) else {
                         throw OpenAIError.callToNonExistantFunction(function)
                     }
                     
@@ -92,12 +101,24 @@ class OpenAINetworkManager {
         
             var finalResponse: OpenAIAPIResponse = response
             if !functionOutputsToSend.isEmpty {
-                let res = try await Self.sendOpenAIAPIRequest(.init(input: functionOutputsToSend, previousResponseId: finalResponse.id))
+                let res = try await Self.sendOpenAIAPIRequest(.init(
+                    model: request.model,
+                    input: functionOutputsToSend,
+                    instructions: request.instructions, previousResponseId: finalResponse.id,
+                    tools: request.tools,
+                    toolChoice: request.toolChoice
+                ))
                 finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
             }
             
             if !callbackOutputsToSend.isEmpty {
-                let res = try await Self.sendOpenAIAPIRequest(.init(input: callbackOutputsToSend, previousResponseId: finalResponse.id))
+                let res = try await Self.sendOpenAIAPIRequest(.init(
+                    model: request.model,
+                    input: callbackOutputsToSend,
+                    instructions: request.instructions, previousResponseId: finalResponse.id,
+                    tools: request.tools,
+                    toolChoice: request.toolChoice
+                ))
                 finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
             }
 
@@ -115,6 +136,7 @@ class OpenAINetworkManager {
 
 enum OpenAINetworkError: Error {
     case noMessageReturned
+    case noStrategy
 }
 
 // MARK: Context and Instructions
@@ -125,69 +147,15 @@ extension OpenAINetworkManager {
         return contents
     }
     
-    static var defaultTools: [OpenAIGenericTool] {
-        return Self.defaultFunctions.map({ return OpenAIGenericTool($0) })
+    static var strategistInstructionContents: String {
+        guard let file = Bundle.main.path(forResource: "StrategistInstructions", ofType: "md"),
+              let contents = try? String(contentsOfFile: file, encoding: .utf8) else { return "" }
+        return contents
     }
     
-    static let defaultFunctions: [OpenAIFunction] = [
-        .init(name: "fetch-local-storage",
-              description: "When the user asks for something relating to memory/persistent data, this function returns the entire stored data in a key-value dictionary",
-              parameters: .init(
-                type: "object",
-                properties: [:],
-                required: [],
-                additionalProperties: false),
-              strict: false,
-              executorFunction: { _ in return "{go to the gym, zoom personal PMI: 3641119944}"}),
-        .init(name: "current-date",
-              description: "When the user asks for date-specific information, you are granted access to this information using this function, which returns an ISO-8601 string. Note, you do not have to use the entire data for any given response. If the user asks for the time, give it to them in their local time zone.",
-              parameters: .init(
-                type: "object",
-                properties: [:],
-                required: [],
-                additionalProperties: false),
-              strict: false,
-              executorFunction: { _ in
-                  let formatter = ISO8601DateFormatter()
-                  formatter.timeZone = Calendar.current.timeZone
-                  return formatter.string(from: Date.now)
-              }),
-        .init(name: "open-url-in-browser",
-              description: "When the user asks to be taken to a specific webpage (or if it would help with your response, like a tutorial or something), you can call this function which will open this page in the default browser.",
-              parameters: .init(
-                type: "object",
-                properties: ["url": .init(
-                    type: "string",
-                    enumerable: nil,
-                    description: "The https url that should be opened by the browser.")],
-                required: ["url"],
-                additionalProperties: false),
-              strict: true,
-              executorFunction: { props in
-                  guard let urlStr = props["url"],
-                        let url = URL(string: urlStr),
-                        url.scheme == "https" else {
-                      return "Invalid input"
-                  }
-                  
-                  guard let (_,response) = try? await URLSession.shared.data(from: url),
-                            let http = response as? HTTPURLResponse else {
-                      return "Unable to connect to target website"
-                  }
-                  guard http.statusCode == 200 else {
-                      return "Website does not return OK status code, instead returned \(http.statusCode)"
-                  }
-                  
-                  
-                  NSWorkspace.shared.open(url)
-                  return "Successfully opened: \(url.absoluteString)"
-              }),
-        .init(name: "take-screenshot",
-              description: "When the user asks for help or information on their screen, you can use this function to get a capture of their running application. Can fail if screenshot permission is not allowed",
-              parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
-              strict: true,
-              executorFunction: nil)
-    ]
+    static var defaultTools: [OpenAIGenericTool] {
+        return OpenAIFunction.defaultFunctions.map({ return OpenAIGenericTool($0) })
+    }
     
     
     private static let developerMessage: OpenAIMessage = .init(
@@ -217,16 +185,16 @@ struct OpenAIAPIRequest: Encodable {
         return (firstText as? OpenAIContentInput)?.content
     }
     
-    init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.init(model: model, input: [input], instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
         
     }
     
-    init(model: String = "gpt-4.1-mini", input: String, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1", input: String, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.init(model: model, input: OpenAIContentInput(content: input), instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
     }
     
-    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.model = model
         self.input = OpenAIInputs(inputs: input)
         self.instructions = instructions
@@ -541,6 +509,17 @@ struct OpenAIAPIResponse: Codable, Identifiable {
         return output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? []
     }
     
+    var textMessage: String? {
+        let msgBody = self.output?.last(where: {
+            $0.body is OpenAIMessageResponse
+        })
+        
+        guard let body = msgBody?.body,
+              let msg = body as? OpenAIMessageResponse else {
+            return nil }
+        return msg.content.first?.text
+    }
+    
     
 }
 
@@ -593,6 +572,123 @@ struct OpenAIFunction: OpenAITool {
         case strict
         
     }
+    
+    static let defaultFunctions: [OpenAIFunction] = [
+        .init(name: "fetch-local-storage",
+              description: "When the user asks for something relating to memory/persistent data, this function returns the entire stored data in a key-value dictionary",
+              parameters: .init(
+                type: "object",
+                properties: [:],
+                required: [],
+                additionalProperties: false),
+              strict: false,
+              executorFunction: { _ in return "{go to the gym, zoom personal PMI: 3641119944}"}),
+        .init(name: "current-date",
+              description: "When the user asks for date-specific information, you are granted access to this information using this function, which returns an ISO-8601 string. Note, you do not have to use the entire data for any given response. If the user asks for the time, give it to them in their local time zone.",
+              parameters: .init(
+                type: "object",
+                properties: [:],
+                required: [],
+                additionalProperties: false),
+              strict: false,
+              executorFunction: { _ in
+                  let formatter = ISO8601DateFormatter()
+                  formatter.timeZone = Calendar.current.timeZone
+                  return formatter.string(from: Date.now)
+              }),
+        .init(name: "open-url-in-browser",
+              description: "When the user asks to be taken to a specific webpage (or if it would help with your response, like a tutorial or something), you can call this function which will open this page in the default browser.",
+              parameters: .init(
+                type: "object",
+                properties: ["url": .init(
+                    type: "string",
+                    enumerable: nil,
+                    description: "The https url that should be opened by the browser.")],
+                required: ["url"],
+                additionalProperties: false),
+              strict: true,
+              executorFunction: { props in
+                  guard let urlStr = props["url"],
+                        let url = URL(string: urlStr),
+                        url.scheme == "https" else {
+                      return "Invalid input"
+                  }
+                  
+                  guard let (_,response) = try? await URLSession.shared.data(from: url),
+                            let http = response as? HTTPURLResponse else {
+                      return "Unable to connect to target website"
+                  }
+                  guard http.statusCode == 200 else {
+                      return "Website does not return OK status code, instead returned \(http.statusCode)"
+                  }
+                  
+                  
+                  NSWorkspace.shared.open(url)
+                  return "Successfully opened: \(url.absoluteString)"
+              }),
+        .init(name: "take-screenshot",
+              description: "When the user asks for help or information on their screen, you can use this function to get a capture of their running application. Can fail if screenshot permission is not allowed",
+              parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
+              strict: true,
+              executorFunction: nil),
+        .init(name: "ask-strategist",
+              description: "When we deviate from the plan, something isn't where the strategist thought it would be, or something that might change the plan, we should ask the strategist to come up with a revised plan with the information.",
+              parameters: .init(type: "object",
+                                properties: [
+                                    "message": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "The message that you're sending the strategist. Should talk about what the original plan was, what you tried, why you think it's not going to work, and what the new plan should be. Ask if there are some more APIs that you could call that might solve the problem."),
+                                    "originalRequest": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "An exact copy of the user's original request.")],
+                                required: ["message", "originalRequest"],
+                                additionalProperties: false),
+              strict: true,
+              executorFunction: { params in
+                  guard let msg = params["message"], let req = params["originalRequest"] else { return "You didn't give the strategist a message or the original request."}
+                  let messageCombined =
+                              """
+                                <CALLBACK FROM EXECUTOR>
+                                \(msg)
+                                </CALLBACK FROM EXECUTOR>
+                              
+                                <ORIGINAL REQUEST>
+                                \(req)
+                                </ORIGINAL REQUEST>
+                              """
+                  let strategistRequest = OpenAIAPIRequest(model: "gpt-4.1", input: messageCombined, instructions: OpenAINetworkManager.strategistInstructionContents)
+                  guard let strategistResponse = try? await OpenAINetworkManager.executeOpenAIRequest(strategistRequest),
+                        let newStrategy = strategistResponse.textMessage else {
+                      return "SYSTEM MESSAGE: The strategist did not respond. Try with the original request as best you can."
+                  }
+                  
+                  return newStrategy
+              }),
+        .init(name: "get-request-public",
+              description: "A general, unauthenticated GET-request for an API. The details you give will be execute exactly as given with no authentication injected into the request. You will be returned the exact data returned by the request, encoded as UTF-8. Importantly, so that you don't lose context, if you have the ability to filter results or only include necessary fields, you should do so.",
+              parameters: .init(type: "object",
+                                properties: [
+                                    "url": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "The complete URL that will be placed in the get request. Should include all necessary query parameters in-line")],
+                                required: ["url"],
+                                additionalProperties: false),
+              strict: true,
+              executorFunction: { params in
+                  guard let urlStr = params["url"] else { return "You didn't provide a URL."}
+                  guard let url = URL(string: urlStr) else {return "The URL you provided was invalid."}
+                  
+                  guard let (data, response) = try? await URLSession.shared.data(from: url),
+                        let http = response as? HTTPURLResponse else { return "Unable to execute GET request." }
+                  
+                  guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)"}
+                  guard let dataStr = String(data: data, encoding: .utf8) else { return "Unable to parse data"}
+                  return dataStr
+              })
+    ]
 }
 
 struct OpenAIFunctionParameter: Codable {

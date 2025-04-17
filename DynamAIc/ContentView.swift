@@ -15,6 +15,7 @@ struct ContentView: View {
         TabView {
             ForEach(history, id: \.self) { res in
                 Text(LocalizedStringKey(res.message))
+                    .textSelection(.enabled)
                     .tabItem {
                         Label(String(res.hashValue), systemImage: "book")
                     }
