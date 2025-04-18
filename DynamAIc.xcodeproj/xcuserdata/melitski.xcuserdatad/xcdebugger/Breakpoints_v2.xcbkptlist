@@ -71,91 +71,17 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "CDAC0165-C012-4C67-8448-20728F552541"
+            uuid = "50957D5E-8D2A-4EFB-BDD8-7078735A7A1D"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
             filePath = "DynamAIc/OpenAINetworkManager.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "662"
-            endingLineNumber = "662"
+            startingLineNumber = "667"
+            endingLineNumber = "667"
             landmarkName = "defaultFunctions"
             landmarkType = "24">
-            <Locations>
-               <Location
-                  uuid = "CDAC0165-C012-4C67-8448-20728F552541 - baa19a3956a18f71"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(1) suspend resume partial function for closure #4 (Swift.Dictionary&lt;Swift.String, Swift.String&gt;) async -&gt; Swift.String in variable initialization expression of static DynamAIc.OpenAIFunction.defaultFunctions : Swift.Array&lt;DynamAIc.OpenAIFunction&gt;"
-                  moduleName = "DynamAIc.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/melitski/Documents/DynamAIc/DynamAIc/OpenAINetworkManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "662"
-                  endingLineNumber = "662">
-               </Location>
-               <Location
-                  uuid = "CDAC0165-C012-4C67-8448-20728F552541 - f266d585ca0be076"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(2) await resume partial function for closure #4 (Swift.Dictionary&lt;Swift.String, Swift.String&gt;) async -&gt; Swift.String in variable initialization expression of static DynamAIc.OpenAIFunction.defaultFunctions : Swift.Array&lt;DynamAIc.OpenAIFunction&gt;"
-                  moduleName = "DynamAIc.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/melitski/Documents/DynamAIc/DynamAIc/OpenAINetworkManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "662"
-                  endingLineNumber = "662">
-               </Location>
-               <Location
-                  uuid = "CDAC0165-C012-4C67-8448-20728F552541 - e0d669bab9874b77"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(3) suspend resume partial function for closure #4 (Swift.Dictionary&lt;Swift.String, Swift.String&gt;) async -&gt; Swift.String in variable initialization expression of static DynamAIc.OpenAIFunction.defaultFunctions : Swift.Array&lt;DynamAIc.OpenAIFunction&gt;"
-                  moduleName = "DynamAIc.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/melitski/Documents/DynamAIc/DynamAIc/OpenAINetworkManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "662"
-                  endingLineNumber = "662">
-               </Location>
-               <Location
-                  uuid = "CDAC0165-C012-4C67-8448-20728F552541 - 3d3617b6f6be974"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for closure #4 (Swift.Dictionary&lt;Swift.String, Swift.String&gt;) async -&gt; Swift.String in variable initialization expression of static DynamAIc.OpenAIFunction.defaultFunctions : Swift.Array&lt;DynamAIc.OpenAIFunction&gt;"
-                  moduleName = "DynamAIc.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/melitski/Documents/DynamAIc/DynamAIc/OpenAINetworkManager.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "662"
-                  endingLineNumber = "662">
-               </Location>
-            </Locations>
-         </BreakpointContent>
-      </BreakpointProxy>
-      <BreakpointProxy
-         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
-         <BreakpointContent
-            uuid = "22D4CB98-DA25-4BAA-9D70-A8740BFB6DFB"
-            shouldBeEnabled = "Yes"
-            ignoreCount = "0"
-            continueAfterRunningActions = "No"
-            filePath = "DynamAIc/OpenAINetworkManager.swift"
-            startingColumnNumber = "9223372036854775807"
-            endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "26"
-            endingLineNumber = "26"
-            landmarkName = "getAssistantResponse(_:)"
-            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

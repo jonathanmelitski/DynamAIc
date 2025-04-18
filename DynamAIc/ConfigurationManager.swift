@@ -31,6 +31,7 @@ struct Configuration {
 
 enum ConfigurationKey: String {
     case openAIAPIKey = "OPENAI_API_KEY"
+    case googleAPIKey = "GOOGLE_API_KEY"
     
     func getString() throws -> String {
         return try Configuration.value(for: self.rawValue)

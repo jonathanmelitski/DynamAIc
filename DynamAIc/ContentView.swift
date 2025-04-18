@@ -10,6 +10,7 @@ import SwiftData
 
 struct ContentView: View {
     @Query var history: [DynamAIcResponse]
+    @State var settings: Bool = false
     
     var body: some View {
         TabView {
@@ -23,6 +24,19 @@ struct ContentView: View {
             
         }
         .tabViewStyle(.sidebarAdaptable)
+        .tabViewSidebarBottomBar {
+            Button {
+                settings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.title2)
+                    .padding(4)
+            }
+            .popover(isPresented: $settings) {
+                Text("Settings View")
+                    .padding()
+            }
+        }
     }
 }
 
