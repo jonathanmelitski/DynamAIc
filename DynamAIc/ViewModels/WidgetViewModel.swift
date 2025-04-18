@@ -28,7 +28,25 @@ class WidgetViewModel: ObservableObject {
                     }
                 }
             } catch {
-                self.state = .error
+                self.state = .error(error)
+                let failedResponse: DynamAIcResponse?
+                if let error = error as? OpenAIError {
+                    switch error {
+                    case .callToNonExistantFunction(_, let res):
+                        failedResponse = res
+                    case .openAIReportedError(let err, let res):
+                        failedResponse = res
+                    case .noMessageReturned(let res):
+                        failedResponse = res
+                    case .noStrategy(let res):
+                        failedResponse = res
+                    }
+                } else { failedResponse = nil }
+                
+                if let failedResponse {
+                    ApplicationViewModel.shared.addToHistory(failedResponse)
+                }
+                
                 DispatchQueue.main.asyncAfter(deadline: .now().advanced(by: .seconds(8))) {
                     withAnimation {
                         self.state = .userEntry
@@ -46,5 +64,5 @@ class WidgetViewModel: ObservableObject {
 
 
 enum WidgetState {
-    case userEntry, waitingForResponse, response(request: String, response: DynamAIcResponse), error
+    case userEntry, waitingForResponse, response(request: String, response: DynamAIcResponse), error(_ error: any Error)
 }

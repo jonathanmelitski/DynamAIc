@@ -91,7 +91,7 @@ struct OpenAIInputs: Encodable {
 
 struct OpenAIAPIResponse: Codable, Identifiable {
     let id: String?
-    let error: OpenAIError?
+    let error: OpenAIErrorBody?
     let output: [OpenAIOutput]?
     
     var functionCalls: [OpenAIFunctionCallRequest] {
@@ -110,7 +110,7 @@ struct OpenAIAPIResponse: Codable, Identifiable {
     }
 }
 
-struct OpenAIError: Codable {
+struct OpenAIErrorBody: Codable {
     let code: String
     let message: String
 }

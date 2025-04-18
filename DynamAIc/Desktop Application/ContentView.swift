@@ -15,7 +15,7 @@ struct ContentView: View {
     var body: some View {
         TabView {
             ForEach(history, id: \.self) { res in
-                Text(LocalizedStringKey(res.message))
+                Text(LocalizedStringKey(res.response?.textMessage ?? "No result returned"))
                     .textSelection(.enabled)
                     .tabItem {
                         Label(String(res.hashValue), systemImage: "book")

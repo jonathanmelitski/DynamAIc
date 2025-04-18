@@ -82,11 +82,19 @@ struct OpenAIImageContentText: Encodable {
 struct OpenAIImageContentImage: Encodable {
     let type: String
     let imageUrl: String
+    let originalImage: Data?
     
     init(image: CGImage, patchSize: Int, maxPatches: Int) {
         let base64Img = AIScreenshotManager.base64Image(image, patchSize: patchSize, maxPatches: maxPatches)
         self.type = "input_image"
         self.imageUrl = "data:image/png;base64,\(base64Img)"
+        self.originalImage = base64Img.data(using: .utf8)
+    }
+    
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(type, forKey: .type)
+        try container.encode(imageUrl, forKey: .imageUrl)
     }
     
     enum CodingKeys: String, CodingKey {

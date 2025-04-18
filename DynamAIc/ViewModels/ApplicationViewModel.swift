@@ -10,12 +10,15 @@ import SwiftData
 import SwiftUI
 
 class ApplicationViewModel: ObservableObject {
-    let container = try! ModelContainer(for: DynamAIcResponse.self)
     let context: ModelContext
+    let container: ModelContainer
     
     @ObservedObject static var shared = ApplicationViewModel()
     
     @MainActor init() {
+        let storeURL = URL.documentsDirectory.appending(path: "dynamaic.database.sqlite")
+        let config = ModelConfiguration(url: storeURL)
+        self.container = try! ModelContainer(for: DynamAIcResponse.self, configurations: config)
         context = container.mainContext
     }
     

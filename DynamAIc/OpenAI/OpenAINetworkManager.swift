@@ -9,10 +9,12 @@ import AppKit
 
 class OpenAINetworkManager {
     static func getAssistantResponse(_ message: String) async throws -> DynamAIcResponse {
+        let finalResponse = DynamAIcResponse(message)
+        
+        // Strategist function calls not included in final front-end response
         let strategistRequest = OpenAIAPIRequest(model: "gpt-4.1-mini", input: message, instructions: Self.strategistInstructionContents)
         let strategistResponse = try await Self.executeOpenAIRequest(strategistRequest)
-        guard let strategy = strategistResponse.textMessage else { throw OpenAIError.noStrategy }
-        
+        guard let strategy = strategistResponse.textMessage else { throw OpenAIError.noStrategy(finalResponse) }
         let messageCombined =
                     """
                         <REQUEST>
@@ -24,15 +26,16 @@ class OpenAINetworkManager {
                         </PLAN>
                     """
         let executorRequest = OpenAIAPIRequest(input: messageCombined)
-        let executorResponse = try await executeOpenAIRequest(executorRequest)
-        guard let response = executorResponse.textMessage else { throw OpenAIError.noMessageReturned }
+        finalResponse.response = try await executeOpenAIRequest(executorRequest)
+        if let err = finalResponse.response?.error { throw OpenAIError.openAIReportedError(err, finalResponse) }
+        guard let _ = finalResponse.response?.textMessage else { throw OpenAIError.noMessageReturned(finalResponse) }
         
-        return DynamAIcResponse(message: response)
+        return finalResponse
     }
     
-    static func executeOpenAIRequest(_ req: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
+    static func executeOpenAIRequest(_ req: OpenAIAPIRequest, forInProgressResponse response: DynamAIcResponse? = nil) async throws -> OpenAIAPIResponse {
         let res = try await Self.sendOpenAIAPIRequest(req)
-        return try await Self.executeFunctionCalls(for: res, given: req)
+        return try await Self.executeFunctionCalls(for: res, given: req, reportCallsTo: response)
     }
     
     static func sendOpenAIAPIRequest(_ req: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
@@ -49,7 +52,7 @@ class OpenAINetworkManager {
         return try JSONDecoder().decode(OpenAIAPIResponse.self, from: data)
     }
     
-    static func executeFunctionCalls(for response: OpenAIAPIResponse, given request: OpenAIAPIRequest) async throws -> OpenAIAPIResponse {
+    static func executeFunctionCalls(for response: OpenAIAPIResponse, given request: OpenAIAPIRequest, reportCallsTo inProgressResponse: DynamAIcResponse? = nil) async throws -> OpenAIAPIResponse {
         if response.functionCalls.isEmpty {
             return response
         }
@@ -60,7 +63,7 @@ class OpenAINetworkManager {
                 group.addTask {
                     print(function.name)
                     guard let matchedFunc = OpenAIFunction.defaultFunctions.first(where: { $0.name == function.name }) else {
-                        throw OpenAIError.callToNonExistantFunction(function)
+                        throw OpenAIError.callToNonExistantFunction(function, inProgressResponse)
                     }
                     
                     let result: OpenAIFunctionInput
@@ -72,7 +75,8 @@ class OpenAINetworkManager {
                         callId: function.callId,
                         output: out)
                     callbackInput = await matchedFunc.callbackInput?(function)
-
+                    
+                    inProgressResponse?.functionCalled(function: function, result: result, sentCallback: callbackInput)
                     return (result, callbackInput)
                 }
             }
@@ -97,7 +101,7 @@ class OpenAINetworkManager {
                     tools: request.tools,
                     toolChoice: request.toolChoice
                 ))
-                finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
+                finalResponse = try await Self.executeFunctionCalls(for: res, given: request, reportCallsTo: inProgressResponse)
             }
             
             if !callbackOutputsToSend.isEmpty {
@@ -108,17 +112,17 @@ class OpenAINetworkManager {
                     tools: request.tools,
                     toolChoice: request.toolChoice
                 ))
-                finalResponse = try await Self.executeFunctionCalls(for: res, given: request)
+                finalResponse = try await Self.executeFunctionCalls(for: res, given: request, reportCallsTo: inProgressResponse)
             }
 
-            return try await Self.executeFunctionCalls(for: finalResponse, given: request)
+            return try await Self.executeFunctionCalls(for: finalResponse, given: request, reportCallsTo: inProgressResponse)
         }
     }
-    
-    enum OpenAIError: Error {
-        case callToNonExistantFunction(OpenAIFunctionCallRequest)
-        case noMessageReturned
-        case noStrategy
-    }
+}
 
+enum OpenAIError: LocalizedError {
+    case callToNonExistantFunction(OpenAIFunctionCallRequest, DynamAIcResponse?)
+    case openAIReportedError(OpenAIErrorBody, DynamAIcResponse)
+    case noMessageReturned(DynamAIcResponse)
+    case noStrategy(DynamAIcResponse)
 }
