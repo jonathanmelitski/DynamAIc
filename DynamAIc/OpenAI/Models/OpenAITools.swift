@@ -6,13 +6,13 @@
 //
 
 // Note: Adding a new tool requires modifying the behavior of the Generic's encode/decode.
-protocol OpenAITool: Codable {
+protocol OpenAIToolType: Codable {
     var type: String { get }
 }
 
-struct OpenAIGenericTool: OpenAITool {
+struct OpenAITool: OpenAIToolType {
     let type: String
-    let body: (any OpenAITool)?
+    let body: (any OpenAIToolType)?
     
     init(_ function: OpenAIFunction) {
         self.type = function.type
@@ -59,11 +59,11 @@ struct OpenAIGenericTool: OpenAITool {
     }
 }
 
-struct OpenAIWebSearch: OpenAITool {
+struct OpenAIWebSearch: OpenAIToolType {
     var type: String = "web_search_preview"
 }
 
-struct OpenAIFunction: OpenAITool {
+struct OpenAIFunction: OpenAIToolType {
     let type: String
     let name: String
     let description: String

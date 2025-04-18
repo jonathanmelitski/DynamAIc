@@ -11,7 +11,7 @@ struct OpenAIAPIRequest: Encodable {
     var model: String
     let input: OpenAIInputs
     let instructions: String
-    let tools: [OpenAIGenericTool]
+    let tools: [OpenAITool]
     let previousResponseId: String?
     let toolChoice: String
     let parallelToolCalls: Bool
@@ -23,16 +23,16 @@ struct OpenAIAPIRequest: Encodable {
         return (firstText as? OpenAIContentInput)?.content
     }
     
-    init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.init(model: model, input: [input], instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
         
     }
     
-    init(model: String = "gpt-4.1-mini", input: String, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: String, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.init(model: model, input: OpenAIContentInput(content: input), instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
     }
     
-    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAIGenericTool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
         self.model = model
         self.input = OpenAIInputs(inputs: input)
         self.instructions = instructions
@@ -92,7 +92,7 @@ struct OpenAIInputs: Encodable {
 struct OpenAIAPIResponse: Codable, Identifiable {
     let id: String?
     let error: OpenAIError?
-    let output: [OpenAIGenericOutput]?
+    let output: [OpenAIOutput]?
     
     var functionCalls: [OpenAIFunctionCallRequest] {
         return output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? []

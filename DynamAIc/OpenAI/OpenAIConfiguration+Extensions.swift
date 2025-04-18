@@ -22,8 +22,8 @@ extension OpenAINetworkManager {
         return contents
     }
     
-    static var defaultTools: [OpenAIGenericTool] {
-        return OpenAIFunction.defaultFunctions.map({ return OpenAIGenericTool($0) })
+    static var defaultTools: [OpenAITool] {
+        return OpenAIFunction.defaultFunctions.map({ return OpenAITool($0) })
     }
     
 }

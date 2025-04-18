@@ -7,26 +7,25 @@
 
 import Foundation
 
-protocol OpenAIOutput: Codable, Identifiable {
+protocol OpenAIOutputType: Codable, Identifiable {
     var id: String { get }
+    var type: String { get }
 }
 
-struct OpenAIGenericOutput: Codable {
+struct OpenAIOutput: Codable {
     let type: String
     let id: String
-    let body: (any OpenAIOutput)?
+    let body: (any OpenAIOutputType)
     
     init(from decoder: any Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.type = try container.decode(String.self, forKey: .type)
         self.id = try container.decode(String.self, forKey: .id)
         switch self.type {
-        case "message":
-            body = try OpenAIMessageResponse(from: decoder)
         case "function_call":
             body = try OpenAIFunctionCallRequest(from: decoder)
         default:
-            body = nil
+            body = try OpenAIMessageResponse(from: decoder)
         }
     }
     
@@ -40,8 +39,6 @@ struct OpenAIGenericOutput: Codable {
             try value.encode(to: encoder)
         case let value as OpenAIFunctionCallRequest:
             try value.encode(to: encoder)
-        case nil:
-            break
         default:
             throw EncodingError.invalidValue(body as Any, EncodingError.Context(codingPath: encoder.codingPath, debugDescription: "Unsupported type"))
         }
@@ -53,9 +50,10 @@ struct OpenAIGenericOutput: Codable {
     }
 }
 
-struct OpenAIMessageResponse: OpenAIOutput {
+struct OpenAIMessageResponse: OpenAIOutputType {
     let id: String
     let role: String
+    let type: String
     let content: [OpenAIMessageContent]
 }
 
@@ -64,7 +62,7 @@ struct OpenAIMessageContent: Codable {
     let text: String
 }
 
-struct OpenAIFunctionCallRequest: OpenAIOutput {
+struct OpenAIFunctionCallRequest: OpenAIOutputType {
     let id: String
     let type: String
     let callId: String
