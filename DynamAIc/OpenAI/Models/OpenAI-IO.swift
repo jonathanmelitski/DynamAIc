@@ -95,7 +95,7 @@ struct OpenAIAPIResponse: Codable, Identifiable {
     let output: [OpenAIOutput]?
     
     var functionCalls: [OpenAIFunctionCallRequest] {
-        return output?.filter({ $0.type == "function_call" && $0.body != nil }).compactMap {($0.body! as! OpenAIFunctionCallRequest)} ?? []
+        return output?.filter({ $0.type == "function_call" }).compactMap {($0.body as! OpenAIFunctionCallRequest)} ?? []
     }
     
     var textMessage: String? {

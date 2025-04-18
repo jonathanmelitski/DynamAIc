@@ -87,7 +87,16 @@ extension OpenAIFunction {
               description: "When the user asks for help or information on their screen, you can use this function to get a capture of their running application. Can fail if screenshot permission is not allowed",
               parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
               strict: true,
-              executorFunction: nil),
+              executorFunction: { _ in
+                  return "SYSTEM MESSAGE: Taking screenshot. Will send in future call."
+              },
+              callbackInput: { _ in
+                  if let img = await AIScreenshotManager.takeScreenshot() {
+                      return OpenAIImageContentInput(image: img, message: "Here is the image. Proceed with the original request.")
+                  } else {
+                      return OpenAIContentInput(content: "Failed to take a screenshot. Try to proceed without it.", role: "developer")
+                  }
+              }),
         .init(name: "ask-strategist",
               description: "You should ask the strategist for a new plan if something isn't where the strategist thought it would be, an unexpected outcome occurs, or something that might change the plan.",
               parameters: .init(type: "object",

@@ -65,27 +65,14 @@ class OpenAINetworkManager {
                     
                     let result: OpenAIFunctionInput
                     let callbackInput: (any OpenAIInput)?
-                    switch matchedFunc.name {
-                    case "take-screenshot":
-                        let img = await AIScreenshotManager.takeScreenshot()
-                        result = OpenAIFunctionInput(
-                            callId: function.callId,
-                            output: img != nil ?
-                            "Screenshot successful, sending output. Will be handled by another call." :
-                                "Failed to capture image")
-                        if let img {
-                            callbackInput = OpenAIImageContentInput(image: img, message: request.textInput ?? "Here is the image. Proceed with the original request.")
-                        } else {
-                            callbackInput = nil
-                        }
-                    default:
-                        let out = await matchedFunc.executorFunction?(function.arguments)
-                            ?? "Failed to execute this function. Consider using a different function or workaround. Be creative."
-                        result = OpenAIFunctionInput(
-                            callId: function.callId,
-                            output: out)
-                        callbackInput = nil
-                    }
+                    
+                    let out = await matchedFunc.executorFunction?(function.arguments)
+                        ?? "Failed to execute this function. Consider using a different function or workaround. Be creative."
+                    result = OpenAIFunctionInput(
+                        callId: function.callId,
+                        output: out)
+                    callbackInput = await matchedFunc.callbackInput?(function)
+
                     return (result, callbackInput)
                 }
             }
@@ -100,6 +87,8 @@ class OpenAINetworkManager {
             }
         
             var finalResponse: OpenAIAPIResponse = response
+            
+            // Recursively call all functions prior to sending callback message to ensure valid state.
             if !functionOutputsToSend.isEmpty {
                 let res = try await Self.sendOpenAIAPIRequest(.init(
                     model: request.model,

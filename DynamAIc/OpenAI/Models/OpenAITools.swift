@@ -70,14 +70,16 @@ struct OpenAIFunction: OpenAIToolType {
     let parameters: OpenAIFunctionParameter
     let strict: Bool
     let executorFunction: (([String: String]) async -> String)?
+    let callbackInput: ((OpenAIFunctionCallRequest) async -> any OpenAIInput)?
     
-    init(name: String, description: String, parameters: OpenAIFunctionParameter, strict: Bool, executorFunction: (([String:String]) async -> String)?) {
+    init(name: String, description: String, parameters: OpenAIFunctionParameter, strict: Bool, executorFunction: @escaping (([String:String]) async -> String), callbackInput: ((OpenAIFunctionCallRequest) async -> any OpenAIInput)? = nil) {
         self.type = "function"
         self.name = name
         self.description = description
         self.parameters = parameters
         self.strict = strict
         self.executorFunction = executorFunction
+        self.callbackInput = callbackInput
     }
     
     init(from decoder: any Decoder) throws {
@@ -88,6 +90,7 @@ struct OpenAIFunction: OpenAIToolType {
         self.parameters = try container.decode(OpenAIFunctionParameter.self, forKey: .parameters)
         self.strict = try container.decode(Bool.self, forKey: .name)
         self.executorFunction = nil
+        self.callbackInput = nil
     }
     
     func encode(to encoder: any Encoder) throws {
