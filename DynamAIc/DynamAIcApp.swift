@@ -16,6 +16,10 @@ struct DynamAIcApp: App {
                 .modelContext(ApplicationViewModel.shared.context)
                 .modelContainer(ApplicationViewModel.shared.container)
         }
+        
+//        Window("DynamAIc Virtual Machine", id: "macos-vm") {
+//            VirtualMachineView()
+//        }
     }
 }
 

@@ -11,11 +11,13 @@ import SwiftData
 struct ContentView: View {
     @Query var history: [DynamAIcResponse]
     @State var settings: Bool = false
+    @Environment(\.modelContext) var context: ModelContext
+    @Environment(\.openWindow) var openWindow
     
     var body: some View {
         TabView {
-            ForEach(history, id: \.self) { res in
-                Text(LocalizedStringKey(res.response?.textMessage ?? "No result returned"))
+            ForEach(history) { res in
+                Text(LocalizedStringKey(res.response.outputText ?? "No result returned"))
                     .textSelection(.enabled)
                     .tabItem {
                         Label(String(res.hashValue), systemImage: "book")
@@ -27,6 +29,9 @@ struct ContentView: View {
         .tabViewSidebarBottomBar {
             Button {
                 settings = true
+                withAnimation {
+                    openWindow(id: "macos-vm")
+                }
             } label: {
                 Image(systemName: "gearshape")
                     .font(.title2)
@@ -36,6 +41,9 @@ struct ContentView: View {
                 Text("Settings View")
                     .padding()
             }
+        }
+        .onAppear() {
+            print(context.container.configurations.first!.url)
         }
     }
 }

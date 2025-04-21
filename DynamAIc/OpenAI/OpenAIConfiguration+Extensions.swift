@@ -7,6 +7,7 @@
 
 import Foundation
 import AppKit
+import SwiftData
 
 // MARK: Context and Instructions
 extension OpenAINetworkManager {
@@ -153,6 +154,31 @@ extension OpenAIFunction {
                   guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)"}
                   guard let dataStr = String(data: data, encoding: .utf8) else { return "Unable to parse data"}
                   return dataStr
-              })
+              }),
+        .init(
+            name: "get-container-storage-keys",
+            description: "Local storage is in the form of keys, which point to different containers. These containers either store a single json object, or they store multiple objects/an array of objects. Use this function to receive access to the various containers in the local storage to inform future queries.",
+            parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
+            strict: true,
+            executorFunction: { _ in
+                do {
+                    let containers = try ContainersManager.getAllContainers()
+                    let keysAndContainers = containers.keysAndContainers
+                    let data = try JSONEncoder().encode(keysAndContainers)
+                    return String(data: data, encoding: .utf8) ?? "No storage containers found."
+                } catch {
+                    if let err = error as? ContainersError {
+                        return err.localizedDescription
+                    } else {
+                        return "Unable to fetch local storage containers."
+                    }
+                }
+            }),
+//        .init(
+//            name: "get-preferences-store",
+//            description: "The preferences store contains the user's preferences, including the locations of certain data, different authenticated endpoints that are available, and other data.",
+//            parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
+//            strict: true,
+//            executorFunction: <#T##(([String : String]) async -> String)##(([String : String]) async -> String)##([String : String]) async -> String#>)
     ]
 }

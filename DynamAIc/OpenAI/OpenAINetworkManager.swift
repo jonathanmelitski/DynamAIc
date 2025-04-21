@@ -26,9 +26,12 @@ class OpenAINetworkManager {
                         </PLAN>
                     """
         let executorRequest = OpenAIAPIRequest(input: messageCombined)
-        finalResponse.response = try await executeOpenAIRequest(executorRequest)
-        if let err = finalResponse.response?.error { throw OpenAIError.openAIReportedError(err, finalResponse) }
-        guard let _ = finalResponse.response?.textMessage else { throw OpenAIError.noMessageReturned(finalResponse) }
+        let executorResponse = try await executeOpenAIRequest(executorRequest)
+        finalResponse.response.id = executorResponse.id
+        finalResponse.response.error = executorResponse.error?.message
+        finalResponse.response.outputText = executorResponse.textMessage
+        if let err = finalResponse.response.error { throw OpenAIError.openAIReportedError(err, finalResponse) }
+        guard let _ = finalResponse.response.outputText else { throw OpenAIError.noMessageReturned(finalResponse) }
         
         return finalResponse
     }
@@ -122,7 +125,7 @@ class OpenAINetworkManager {
 
 enum OpenAIError: LocalizedError {
     case callToNonExistantFunction(OpenAIFunctionCallRequest, DynamAIcResponse?)
-    case openAIReportedError(OpenAIErrorBody, DynamAIcResponse)
+    case openAIReportedError(String, DynamAIcResponse)
     case noMessageReturned(DynamAIcResponse)
     case noStrategy(DynamAIcResponse)
 }

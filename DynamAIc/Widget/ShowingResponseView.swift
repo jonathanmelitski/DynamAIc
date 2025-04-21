@@ -46,7 +46,7 @@ struct ShowingResponseView: View {
         
         HStack {
             ScrollView(.vertical) {
-                Text(LocalizedStringKey(res.response?.textMessage ?? "Maybe an error idk?"))
+                Text(LocalizedStringKey(res.response.outputText ?? "Maybe an error idk?"))
                     .font(.title2)
                     .fontDesign(.serif)
                     .fontWeight(.medium)
