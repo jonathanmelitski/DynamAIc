@@ -139,3 +139,35 @@ struct OpenAIParameterProperty: Codable {
         case description
     }
 }
+
+struct OpenAIToolChoice: Encodable {
+    let type: String?
+    let name: String?
+    let value: String?
+    
+    init(value: String) {
+        self.value = value
+        self.type = nil
+        self.name = nil
+    }
+    
+    init (function: String) {
+        self.type = "function"
+        self.name = function
+        self.value = nil
+    }
+    
+    func encode(to encoder: any Encoder) throws {
+        if value != nil {
+            try value!.encode(to: encoder)
+        } else {
+            var container = encoder.container(keyedBy: CodingKeys.self)
+            try container.encode(type, forKey: .type)
+            try container.encode(name, forKey: .name)
+        }
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case type, name, value
+    }
+}

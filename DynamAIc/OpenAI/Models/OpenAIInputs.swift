@@ -102,3 +102,5 @@ struct OpenAIImageContentImage: Encodable {
         case imageUrl = "image_url"
     }
 }
+
+

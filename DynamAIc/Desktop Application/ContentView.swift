@@ -29,16 +29,13 @@ struct ContentView: View {
         .tabViewSidebarBottomBar {
             Button {
                 settings = true
-                withAnimation {
-                    openWindow(id: "macos-vm")
-                }
             } label: {
                 Image(systemName: "gearshape")
                     .font(.title2)
                     .padding(4)
             }
             .popover(isPresented: $settings) {
-                Text("Settings View")
+                SettingsView()
                     .padding()
             }
         }

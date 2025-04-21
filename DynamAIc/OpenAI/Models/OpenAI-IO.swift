@@ -13,7 +13,7 @@ struct OpenAIAPIRequest: Encodable {
     let instructions: String
     let tools: [OpenAITool]
     let previousResponseId: String?
-    let toolChoice: String
+    let toolChoice: OpenAIToolChoice
     let parallelToolCalls: Bool
     
     var textInput: String? {
@@ -23,16 +23,16 @@ struct OpenAIAPIRequest: Encodable {
         return (firstText as? OpenAIContentInput)?.content
     }
     
-    init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: any OpenAIInput, instructions: String, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: OpenAIToolChoice = OpenAIToolChoice(value: "auto")) {
         self.init(model: model, input: [input], instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
         
     }
     
-    init(model: String = "gpt-4.1-mini", input: String, instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: String, instructions: String, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: OpenAIToolChoice = OpenAIToolChoice(value: "auto")) {
         self.init(model: model, input: OpenAIContentInput(content: input), instructions: instructions, previousResponseId: previousResponseId, tools: tools, toolChoice: toolChoice)
     }
     
-    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String = OpenAINetworkManager.markdownInstructionContents, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: String = "auto") {
+    init(model: String = "gpt-4.1-mini", input: [any OpenAIInput], instructions: String, previousResponseId: String? = nil, tools: [OpenAITool] = OpenAINetworkManager.defaultTools, toolChoice: OpenAIToolChoice = OpenAIToolChoice(value: "auto")) {
         self.model = model
         self.input = OpenAIInputs(inputs: input)
         self.instructions = instructions

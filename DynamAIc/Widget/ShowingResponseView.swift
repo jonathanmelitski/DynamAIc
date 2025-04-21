@@ -66,6 +66,20 @@ struct ShowingResponseView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 8).stroke(Color.accentColor,lineWidth: 2)
         }
+        .overlay {
+            VStack {
+                Spacer()
+                HStack {
+                    Button {
+                        vm.continueResponse(res)
+                    } label: {
+                        Image(systemName: "arrow.uturn.forward")
+                            .foregroundStyle(Color.accentColor)
+                            .padding(8)
+                    }
+                }
+            }
+        }
         .transition(.blurReplace)
     }
 }

@@ -12,14 +12,16 @@ import SwiftUI
 class ApplicationViewModel: ObservableObject {
     let context: ModelContext
     let container: ModelContainer
+    static let dataConfiguration = ModelConfiguration(url: URL.documentsDirectory.appending(path: "dynamaic.database.sqlite"))
     
     @ObservedObject static var shared = ApplicationViewModel()
     
+    @Published var accessTokens: [any AccessToken] = []
+    
     @MainActor init() {
-        let storeURL = URL.documentsDirectory.appending(path: "dynamaic.database.sqlite")
-        let config = ModelConfiguration(url: storeURL)
-        self.container = try! ModelContainer(for: DynamAIcResponse.self, configurations: config)
+        self.container = try! ModelContainer(for: DynamAIcResponse.self, DynamAIcSingleStorageContainer.self, DynamAIcMultipleStorageContainer.self, configurations: Self.dataConfiguration)
         context = container.mainContext
+        // TODO: Get AccessTokens
     }
     
     func addToHistory(_ response: DynamAIcResponse) {

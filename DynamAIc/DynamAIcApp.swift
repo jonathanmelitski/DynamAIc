@@ -15,6 +15,10 @@ struct DynamAIcApp: App {
             ContentView()
                 .modelContext(ApplicationViewModel.shared.context)
                 .modelContainer(ApplicationViewModel.shared.container)
+                .onAppear {
+                    // Initialize preferences container
+                    let _ = try! ContainersManager.getPreferences()
+                }
         }
         
 //        Window("DynamAIc Virtual Machine", id: "macos-vm") {

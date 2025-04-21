@@ -22,6 +22,9 @@ struct MenuView: View {
                 ShowingResponseView(req: req, res: res)
             case .error(let error):
                 ResponseErrorView(error: error)
+            case .continuing(let previous):
+                ShowingResponseView(req: previous.request, res: previous)
+                UserEntryView()
             }
         }
         .padding()

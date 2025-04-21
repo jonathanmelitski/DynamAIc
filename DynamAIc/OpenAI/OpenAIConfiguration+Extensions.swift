@@ -11,14 +11,20 @@ import SwiftData
 
 // MARK: Context and Instructions
 extension OpenAINetworkManager {
-    static var markdownInstructionContents: String {
-        guard let file = Bundle.main.path(forResource: "Instructions", ofType: "md"),
+    static var executorInstructionContents: String {
+        guard let file = Bundle.main.path(forResource: "ExecutorInstructions", ofType: "md"),
               let contents = try? String(contentsOfFile: file, encoding: .utf8) else { return "" }
         return contents
     }
     
     static var strategistInstructionContents: String {
         guard let file = Bundle.main.path(forResource: "StrategistInstructions", ofType: "md"),
+              let contents = try? String(contentsOfFile: file, encoding: .utf8) else { return "" }
+        return contents
+    }
+    
+    static var singleExecutorInstructionContents: String {
+        guard let file = Bundle.main.path(forResource: "SingleExecutorInstructions", ofType: "md"),
               let contents = try? String(contentsOfFile: file, encoding: .utf8) else { return "" }
         return contents
     }
@@ -157,7 +163,7 @@ extension OpenAIFunction {
               }),
         .init(
             name: "get-container-storage-keys",
-            description: "Local storage is in the form of keys, which point to different containers. These containers either store a single json object, or they store multiple objects/an array of objects. Use this function to receive access to the various containers in the local storage to inform future queries.",
+            description: "Local storage is in the form of keys, which point to different containers. These containers either store a single json object, or they store multiple objects/an array of objects. Use this function to receive access to the various containers in the local storage to inform future queries. One of these containers is the preferences, so you should call this to gain access to local preferences",
             parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
             strict: true,
             executorFunction: { _ in
@@ -174,11 +180,51 @@ extension OpenAIFunction {
                     }
                 }
             }),
-//        .init(
-//            name: "get-preferences-store",
-//            description: "The preferences store contains the user's preferences, including the locations of certain data, different authenticated endpoints that are available, and other data.",
-//            parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
-//            strict: true,
-//            executorFunction: <#T##(([String : String]) async -> String)##(([String : String]) async -> String)##([String : String]) async -> String#>)
+        .init(
+            name: "get-container",
+            description: "Returns the JSON-encoded data for a container in local storage. You can access the keys using the get-container-storage-keys function. You pass in the key for the container, as well as the expected type, and it will return the data.",
+            parameters: .init(
+                type: "object",
+                properties: [
+                    "key": .init(
+                        type: "string",
+                        enumerable: nil,
+                        description: "The key for the container returned by the get-container-storage-keys function"),
+                    "type": .init(
+                        type: "string",
+                        enumerable: ["single", "multiple/array"],
+                        description: "The type of the storage container. Some containers hold singleton JSON objects, whereas others contain an array of JSON objects indexed by an ID property.")
+                    ],
+                required: ["key", "type"],
+                additionalProperties: false),
+            strict: true,
+            executorFunction: { args in
+                guard let key = args["key"], let type = args["type"] else {
+                    return "Missing argument."
+                }
+                
+                print("Trying to fetch \(type) container: \(key).")
+                
+                do {
+                    let anyContainer = try ContainersManager.getContainerByKey(key, type: type)
+                    let data: Data
+                    let encoder = JSONEncoder()
+                    if let container = anyContainer as? DynamAIcSingleStorageContainer, type == "single" {
+                        data = try JSONEncoder().encode(container)
+                    } else if let container = anyContainer as? DynamAIcMultipleStorageContainer, type == "multiple/array" {
+                        data = try JSONEncoder().encode(container)
+                    } else {
+                        throw ContainersError.containerTypeMismatch
+                    }
+                    
+                    return String(data: data, encoding: .utf8) ?? "Unable to parse container."
+                } catch {
+                    if let err = error as? ContainersError {
+                        return err.localizedDescription
+                    } else {
+                        return "Failed to fetch container."
+                    }
+                }
+            })
     ]
 }

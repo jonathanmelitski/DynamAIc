@@ -14,15 +14,21 @@ class WidgetViewModel: ObservableObject {
     
     func submit() {
         guard !promptText.isEmpty else { return }
+        var prev: DynamAIcResponse? = nil
+        if case .continuing(let p) = self.state { prev = p }
         let input = promptText
         promptText = ""
         state = .waitingForResponse
         Task { @MainActor in
             do {
-                let res = try await OpenAINetworkManager.getAssistantResponse(input)
+                let res = try await OpenAINetworkManager.getAssistantResponse(input, continuing: prev)
                 self.state = .response(request: input, response: res)
                 ApplicationViewModel.shared.addToHistory(res)
                 DispatchQueue.main.asyncAfter(deadline: .now().advanced(by: .seconds(8))) {
+                    guard case .response(_, _) = self.state else {
+                        return
+                    }
+                    
                     withAnimation {
                         self.state = .userEntry
                     }
@@ -56,6 +62,10 @@ class WidgetViewModel: ObservableObject {
         }
     }
     
+    func continueResponse(_ res: DynamAIcResponse) {
+        self.state = .continuing(previous: res)
+    }
+    
     func reset() {
         promptText = ""
         state = .userEntry
@@ -64,5 +74,5 @@ class WidgetViewModel: ObservableObject {
 
 
 enum WidgetState {
-    case userEntry, waitingForResponse, response(request: String, response: DynamAIcResponse), error(_ error: any Error)
+    case userEntry, waitingForResponse, response(request: String, response: DynamAIcResponse), error(_ error: any Error), continuing(previous: DynamAIcResponse)
 }

@@ -8,25 +8,34 @@ import Foundation
 import AppKit
 
 class OpenAINetworkManager {
-    static func getAssistantResponse(_ message: String) async throws -> DynamAIcResponse {
+    
+    static let strategist = false
+    static let strategistModel = "gpt-4.1-mini"
+    
+    static func getAssistantResponse(_ message: String, continuing previous: DynamAIcResponse? = nil) async throws -> DynamAIcResponse {
         let finalResponse = DynamAIcResponse(message)
-        
-        // Strategist function calls not included in final front-end response
-        let strategistRequest = OpenAIAPIRequest(model: "gpt-4.1-mini", input: message, instructions: Self.strategistInstructionContents)
-        let strategistResponse = try await Self.executeOpenAIRequest(strategistRequest)
-        guard let strategy = strategistResponse.textMessage else { throw OpenAIError.noStrategy(finalResponse) }
-        let messageCombined =
+        let executorResponse: OpenAIAPIResponse
+        if strategist {
+            // Strategist function calls not included in final front-end response
+            let strategistRequest = OpenAIAPIRequest(model: Self.strategistModel, input: message, instructions: Self.strategistInstructionContents, previousResponseId: previous?.response.id, toolChoice: .init(value: "required"))
+            let strategistResponse = try await Self.executeOpenAIRequest(strategistRequest)
+            guard let strategy = strategistResponse.textMessage else { throw OpenAIError.noStrategy(finalResponse) }
+            let messageCombined =
                     """
                         <REQUEST>
                         \(message)
                         </REQUEST>
-
+                    
                         <PLAN FROM STRATEGIST>
                         \(strategy)
                         </PLAN>
                     """
-        let executorRequest = OpenAIAPIRequest(input: messageCombined)
-        let executorResponse = try await executeOpenAIRequest(executorRequest)
+            let executorRequest = OpenAIAPIRequest(input: messageCombined, instructions: Self.executorInstructionContents, previousResponseId: previous?.response.id)
+            executorResponse = try await executeOpenAIRequest(executorRequest)
+        } else {
+            let request = OpenAIAPIRequest(model: "gpt-4.1", input: message, instructions: Self.singleExecutorInstructionContents, previousResponseId: previous?.response.id)
+            executorResponse = try await Self.executeOpenAIRequest(request)
+        }
         finalResponse.response.id = executorResponse.id
         finalResponse.response.error = executorResponse.error?.message
         finalResponse.response.outputText = executorResponse.textMessage
@@ -101,8 +110,7 @@ class OpenAINetworkManager {
                     model: request.model,
                     input: functionOutputsToSend,
                     instructions: request.instructions, previousResponseId: finalResponse.id,
-                    tools: request.tools,
-                    toolChoice: request.toolChoice
+                    tools: request.tools
                 ))
                 finalResponse = try await Self.executeFunctionCalls(for: res, given: request, reportCallsTo: inProgressResponse)
             }
@@ -112,8 +120,7 @@ class OpenAINetworkManager {
                     model: request.model,
                     input: callbackOutputsToSend,
                     instructions: request.instructions, previousResponseId: finalResponse.id,
-                    tools: request.tools,
-                    toolChoice: request.toolChoice
+                    tools: request.tools
                 ))
                 finalResponse = try await Self.executeFunctionCalls(for: res, given: request, reportCallsTo: inProgressResponse)
             }

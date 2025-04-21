@@ -39,7 +39,7 @@ struct OpenAIContainerDetails: Codable {
     }
 }
 
-protocol DynamAIcContainer {
+protocol DynamAIcContainer: Encodable {
     var key: String { get set }
     var containerDescription: String { get set }
 }
@@ -54,6 +54,19 @@ class DynamAIcSingleStorageContainer: DynamAIcContainer {
         self.key = key
         self.containerDescription = containerDescription
         self.data = data
+    }
+    
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(key, forKey: .key)
+        try container.encode(containerDescription, forKey: .containerDescription)
+        try container.encode(data, forKey: .data)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case key
+        case containerDescription = "container_description"
+        case data
     }
     
     static let fetchDescriptor: FetchDescriptor = FetchDescriptor(
@@ -71,6 +84,19 @@ class DynamAIcMultipleStorageContainer: DynamAIcContainer {
         self.key = key
         self.containerDescription = containerDescription
         self.dataArray = dataArray
+    }
+    
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(key, forKey: .key)
+        try container.encode(containerDescription, forKey: .containerDescription)
+        try container.encode(dataArray, forKey: .dataArray)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case key
+        case containerDescription = "container_description"
+        case dataArray = "data_array"
     }
     
     var maxDataKey: Int {
@@ -93,7 +119,7 @@ class DynamAIcMultipleStorageContainer: DynamAIcContainer {
 }
 
 @Model
-class DynamAIcData {
+class DynamAIcData: Encodable {
     var id: Int
     var key: String
     var data: Data
@@ -102,5 +128,16 @@ class DynamAIcData {
         self.id = id
         self.key = key
         self.data = data
+    }
+    
+    func encode(to encoder: any Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(key, forKey: .key)
+        try container.encode(data, forKey: .data)
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, key, data
     }
 }
