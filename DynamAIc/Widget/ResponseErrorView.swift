@@ -15,5 +15,8 @@ struct ResponseErrorView: View {
     
     var body: some View {
         Text("Error on request.")
+            .onAppear {
+                print(error.localizedDescription)
+            }
     }
 }

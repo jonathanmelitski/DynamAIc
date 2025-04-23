@@ -42,26 +42,84 @@ struct AuthManager {
 
         let dec = JSONDecoder()
         dec.keyDecodingStrategy = .convertFromSnakeCase
+        let token = try dec.decode(GoogleAccessToken.self, from: data)
         
-        return try dec.decode(GoogleAccessToken.self, from: data)
+        KeychainManager.saveGoogleCredential(token)
+        return token
     }
     
     
-    enum UserAPIServices {
-        case google
+    enum UserAPIServices: Int, Codable, CaseIterable {
+        case google = 0
         
-        var isLoggedIn: Bool {
+        var canonicalName: String {
+            switch self {
+            case .google: return "google"
+            }
+        }
+        
+        var getCredential: () -> (any AccessToken)? {
             switch self {
             case .google:
-                return !ApplicationViewModel.shared.accessTokens.filter({ $0 is GoogleAccessToken }).isEmpty
+                return KeychainManager.loadGoogleCredential
+            }
+        }
+        
+        var deleteCredential: () -> () {
+            switch self {
+            case .google:
+                return KeychainManager.clearGoogleCredential
             }
         }
     }
     
 }
 
+extension URLRequest {
+    init(url: URL, service: AuthManager.UserAPIServices) async throws {
+        self.init(url: url)
+        let token: String
+        switch service {
+        
+        //TODO: REFRESH BEHAVIOR
+        case .google:
+            guard let cred = KeychainManager.loadGoogleCredential() else {
+                throw AuthError.noAuthentication
+            }
+            
+            token = "\(cred.tokenType) \(cred.accessToken)"
+        }
+
+        self.setValue(token, forHTTPHeaderField: "Authorization")
+        self.setValue(token, forHTTPHeaderField: "X-Authorization")
+    }
+}
+
+extension URLSession {
+    convenience init(service: AuthManager.UserAPIServices, configuration: URLSessionConfiguration = .default) async throws {
+        self.init(configuration: configuration)
+        let token: String
+        let tokenType: String
+        switch service {
+        
+        //TODO: REFRESH BEHAVIOR
+        case .google:
+            guard let cred = KeychainManager.loadGoogleCredential() else {
+                throw AuthError.noAuthentication
+            }
+            
+            token = "\(cred.tokenType) \(cred.accessToken)"
+        }
+        self.configuration.httpAdditionalHeaders = [
+            "Authorization": token,
+            "X-Authorization": token
+        ]
+    }
+}
+
 enum AuthError: Error {
     case failedToFetchToken
+    case noAuthentication
 }
 
 struct GoogleAccessToken: AccessToken {

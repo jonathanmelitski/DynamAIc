@@ -14,7 +14,9 @@ struct SettingsView: View {
     
     var body: some View {
         VStack {
-            Text("View")
+            if vm.accessTokens.contains(where: { $0.1 is GoogleAccessToken }) {
+                Text("You are logged in to Google!")
+            }
             Button {
                 Task {
                     do {
@@ -30,13 +32,12 @@ struct SettingsView: View {
                         
                         let code = AuthManager.codeFromUrl(urlWithToken)
                         guard let code else { return }
-                        ApplicationViewModel.shared.accessTokens.append(try await AuthManager.getGoogleAccessToken(
+                        ApplicationViewModel.shared.accessTokens.append((.google, try await AuthManager.getGoogleAccessToken(
                             authCode: code,
                             redirect: "com.jmelitski.Dynamaic:oauth2Redirect",
                             state: state,
                             verifier: verifier)
-                        )
-                        print(AuthManager.UserAPIServices.google.isLoggedIn)
+                        ))
                     } catch {
                         print(error.localizedDescription)
                     }

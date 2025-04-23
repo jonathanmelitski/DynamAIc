@@ -38,15 +38,6 @@ extension OpenAINetworkManager {
 
 extension OpenAIFunction {
     static let defaultFunctions: [OpenAIFunction] = [
-        .init(name: "fetch-local-storage",
-              description: "When the user asks for something relating to memory/persistent data, this function returns the entire stored data in a key-value dictionary",
-              parameters: .init(
-                type: "object",
-                properties: [:],
-                required: [],
-                additionalProperties: false),
-              strict: false,
-              executorFunction: { _ in return "{go to the gym, zoom personal PMI: 3641119944}"}),
         .init(name: "current-date",
               description: "When the user asks for date-specific information, you are granted access to this information using this function, which returns an ISO-8601 string. Note, you do not have to use the entire data for any given response. If the user asks for the time, give it to them in their local time zone.",
               parameters: .init(
@@ -81,9 +72,6 @@ extension OpenAIFunction {
                   guard let (_,response) = try? await URLSession.shared.data(from: url),
                             let http = response as? HTTPURLResponse else {
                       return "Unable to connect to target website"
-                  }
-                  guard http.statusCode == 200 else {
-                      return "Website does not return OK status code, instead returned \(http.statusCode)"
                   }
                   
                   
@@ -157,13 +145,96 @@ extension OpenAIFunction {
                   guard let (data, response) = try? await URLSession.shared.data(from: url),
                         let http = response as? HTTPURLResponse else { return "Unable to execute GET request." }
                   
-                  guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)"}
                   guard let dataStr = String(data: data, encoding: .utf8) else { return "Unable to parse data"}
+                  guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)\n\n\(dataStr)"}
+                  return dataStr
+              }),
+        .init(name: "get-request-authenticated",
+              description: "A general, authenticated GET-request for an API. The details you give will be executed exactly as given, and the credential you specify will be injected into the request out of your purview.. You will be returned the exact data returned by the request, encoded as UTF-8. Importantly, so that you don't lose context, if you have the ability to filter results or only include necessary fields, you should do so.",
+              parameters: .init(type: "object",
+                                properties: [
+                                    "url": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "The complete URL that will be placed in the get request. Should include all necessary query parameters in-line"),
+                                    "service": .init(
+                                        type: "string",
+                                        enumerable: ApplicationViewModel.shared.accessTokens.map({ $0.0.canonicalName }),
+                                        description: "The service whose credential will be put in the valid request headers.")
+                                ],
+                                required: ["url", "service"],
+                                additionalProperties: false),
+              strict: true,
+              executorFunction: { params in
+                  guard let urlStr = params["url"] else { return "You didn't provide a URL."}
+                  guard let url = URL(string: urlStr) else {return "The URL you provided was invalid."}
+                  guard let service = params["service"] else { return "You didn't provide a service."}
+                  guard let enumService = AuthManager.UserAPIServices.allCases.first(where: { $0.canonicalName == service }) else {
+                      return "This service doesn't exist."
+                  }
+                  
+                  guard let request = try? await URLRequest(url: url, service: enumService) else { return "Failed to authenticate with \(service). Try another way."}
+                  
+                  guard let (data, response) = try? await URLSession.shared.data(for: request),
+                        let http = response as? HTTPURLResponse else { return "Unable to execute GET request." }
+                  
+                  guard let dataStr = String(data: data, encoding: .utf8) else { return "Unable to parse data"}
+                  guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)\n\n\(dataStr)"}
+                  return dataStr
+              }),
+        .init(name: "post-request-authenticated",
+              description: "A general, authenticated POST-request for an API. You should be VERY careful with this, for this can lead to unwanted consequences. Consider asking the user to confirm before doing this. The details you give will be executed exactly as given, and the credential you specify will be injected into the request out of your purview.. You will be returned the exact data returned by the request, encoded as UTF-8. Importantly, so that you don't lose context, if you have the ability to filter results or only include necessary fields, you should do so.",
+              parameters: .init(type: "object",
+                                properties: [
+                                    "url": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "The complete URL that will be placed in the post request."),
+                                    "body": .init(
+                                        type: "string",
+                                        enumerable: nil,
+                                        description: "The HTTP body that will be passed in the request. This is a JSON object that does not include any escape characters, such as \\ infront of quotes. HTTP Bodies with escape characters are not encoded correctly and will always result in a bad request, so don't include them in this string."),
+                                    "service": .init(
+                                        type: "string",
+                                        enumerable: ApplicationViewModel.shared.accessTokens.map({ $0.0.canonicalName }),
+                                        description: "The service whose credential will be put in the valid request headers.")
+                                ],
+                                required: ["url", "body", "service"],
+                                additionalProperties: false),
+              strict: true,
+              executorFunction: { params in
+                  guard let urlStr = params["url"] else { return "You didn't provide a URL."}
+                  guard let url = URL(string: urlStr) else {return "The URL you provided was invalid."}
+                  guard let service = params["service"] else { return "You didn't provide a service."}
+                  guard let bodyStr = params["body"] else { return "You didn't provide an HTTP Body."}
+                  guard let enumService = AuthManager.UserAPIServices.allCases.first(where: { $0.canonicalName == service }) else {
+                      return "This service doesn't exist."
+                  }
+                  
+                  guard let bodyData = bodyStr.data(using: .utf8) else { return "Failed to encode HTTP body" }
+                  guard var request = try? await URLRequest(url: url, service: enumService) else { return "Failed to authenticate with \(service). Try another way."}
+                  request.httpMethod = "POST"
+                  request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                  request.httpBody = bodyData
+                  guard let (data, response) = try? await URLSession.shared.data(for: request),
+                        let http = response as? HTTPURLResponse else { return "Unable to execute POST request." }
+                  
+                  
+                  guard let dataStr = String(data: data, encoding: .utf8) else { return "Unable to parse data"}
+                  guard http.statusCode == 200 else { return "Server returned error code \(http.statusCode)\n\n\(dataStr)"}
                   return dataStr
               }),
         .init(
+            name: "get-authenticated-services",
+            description: "Returns the list of services that you have access to authenticated endpoints. You can call these with get and post requests.",
+            parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
+            strict: true,
+            executorFunction: { _ in
+                return ApplicationViewModel.shared.accessTokens.map({ $0.0.canonicalName }).joined(separator: ", ")
+            }),
+        .init(
             name: "get-container-storage-keys",
-            description: "Local storage is in the form of keys, which point to different containers. These containers either store a single json object, or they store multiple objects/an array of objects. Use this function to receive access to the various containers in the local storage to inform future queries. One of these containers is the preferences, so you should call this to gain access to local preferences",
+            description: "You can fetch a set of keys that point to storage containers. Given a key returned by this function, you can call the get-container function to retrieve that data. These containers either store a single JSON object or they store an array. Use this dat to inform future queries. One of these containers is the preferences, so you should call this to get the key to local preferences, in order to access that container in a future call.",
             parameters: .init(type: "object", properties: [:], required: [], additionalProperties: false),
             strict: true,
             executorFunction: { _ in

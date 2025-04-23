@@ -16,12 +16,17 @@ class ApplicationViewModel: ObservableObject {
     
     @ObservedObject static var shared = ApplicationViewModel()
     
-    @Published var accessTokens: [any AccessToken] = []
+    @Published var accessTokens: [(AuthManager.UserAPIServices, any AccessToken)] = []
     
     @MainActor init() {
         self.container = try! ModelContainer(for: DynamAIcResponse.self, DynamAIcSingleStorageContainer.self, DynamAIcMultipleStorageContainer.self, configurations: Self.dataConfiguration)
         context = container.mainContext
         // TODO: Get AccessTokens
+        AuthManager.UserAPIServices.allCases.forEach { val in
+            if let cred = val.getCredential() {
+                accessTokens.append((val, cred))
+            }
+        }
     }
     
     func addToHistory(_ response: DynamAIcResponse) {
